@@ -1,0 +1,9 @@
+{
+  "name": "GazoilTrack",
+  "short_name": "GazoilTrack",
+  "description": "Assistant intelligent pour la gestion de véhicule et carburant.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
