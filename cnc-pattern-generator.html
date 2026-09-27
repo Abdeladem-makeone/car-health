@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CNC Pattern Generator</title>
+<style>
+  :root{
+    --bg:#17181a;
+    --panel-bg:#1f2023;
+    --panel-bg-2:#26272b;
+    --border:#33353a;
+    --text:#e8e6e1;
+    --text-dim:#9a9a9d;
+    --accent:#ff6a1f;
+    --accent-dim:#a8481a;
+    --paper:#f3efe6;
+    --paper-line:#c9c2b2;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --radius: 8px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);height:100%;}
+  body{
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  header.app-header{
+    padding:14px 20px;
+    border-bottom:1px solid var(--border);
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+    flex-shrink:0;
+  }
+  header.app-header h1{
+    font-size:16px;
+    margin:0;
+    letter-spacing:0.02em;
+    text-transform:uppercase;
+    font-weight:700;
+  }
+  header.app-header .accent-dot{
+    width:8px;height:8px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 8px var(--accent);
+    display:inline-block;
+  }
+  header.app-header .sub{
+    font-size:12px;color:var(--text-dim);font-family:var(--mono);
+  }
+  .layout{
+    display:flex;
+    flex:1;
+    min-height:0;
+  }
+  .sidebar{
+    width:320px;
+    flex-shrink:0;
+    background:var(--panel-bg);
+    border-right:1px solid var(--border);
+    overflow-y:auto;
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  fieldset{
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:12px;
+    margin:0;
+  }
+  legend{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--accent);
+    font-weight:700;
+    padding:0 4px;
+  }
+  .field{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:8px;
+  }
+  .field:last-child{margin-bottom:0;}
+  .field label{
+    font-size:12px;
+    color:var(--text-dim);
+    flex-shrink:0;
+  }
+  .field input[type="number"],
+  .field select{
+    font-family:var(--mono);
+    font-size:13px;
+    background:var(--panel-bg-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:5px;
+    padding:5px 7px;
+    width:110px;
+    text-align:right;
+  }
+  .field select{text-align:left; width:150px;}
+  .field input[type="number"]:focus,
+  .field select:focus{
+    outline:none;
+    border-color:var(--accent);
+  }
+  .field.checkbox{justify-content:flex-start;}
+  .field.checkbox input{margin-right:8px;}
+  .field .readonly{
+    color:var(--text-dim);
+    background:var(--panel-bg);
+  }
+  .hint{
+    font-size:11px;
+    color:var(--text-dim);
+    margin-top:-4px;
+    margin-bottom:8px;
+    font-style:italic;
+  }
+  button{
+    font-family:var(--sans);
+    font-size:12px;
+    background:var(--panel-bg-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:5px;
+    padding:7px 10px;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  button:hover{border-color:var(--accent);}
+  button:active{background:var(--accent-dim);}
+  button.primary{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#1a1a1a;
+    font-weight:700;
+  }
+  button.primary:hover{border-color:#fff;}
+  button.small{padding:4px 7px;font-size:11px;}
+  .btn-row{display:flex;gap:6px;flex-wrap:wrap;}
+  .move-pad{
+    display:grid;
+    grid-template-columns:36px 36px 36px;
+    grid-template-rows:36px 36px 36px;
+    gap:4px;
+    justify-content:center;
+    margin:8px 0;
+  }
+  .move-pad button{padding:0;display:flex;align-items:center;justify-content:center;}
+  .move-pad .up{grid-column:2;grid-row:1;}
+  .move-pad .left{grid-column:1;grid-row:2;}
+  .move-pad .center{grid-column:2;grid-row:2;color:var(--text-dim);cursor:default;background:var(--panel-bg);}
+  .move-pad .right{grid-column:3;grid-row:2;}
+  .move-pad .down{grid-column:2;grid-row:3;}
+  #panelList{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    max-height:220px;
+    overflow-y:auto;
+  }
+  .panel-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:6px;
+    padding:6px 8px;
+    border:1px solid var(--border);
+    border-radius:5px;
+    font-family:var(--mono);
+    font-size:11px;
+    cursor:pointer;
+  }
+  .panel-row.selected{
+    border-color:var(--accent);
+    background:rgba(255,106,31,0.08);
+  }
+  .panel-row .row-actions{display:flex;gap:4px;}
+  .stage{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+    background:var(--bg);
+  }
+  .stage-toolbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 16px;
+    border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .stats{
+    display:flex;
+    gap:16px;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-dim);
+    flex-wrap:wrap;
+  }
+  .stats b{color:var(--text);}
+  .zoom-control{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-family:var(--mono);
+    font-size:11px;
+  }
+  .zoom-control input[type="range"]{width:120px;}
+  .canvas-wrap{
+    flex:1;
+    overflow:auto;
+    display:flex;
+    align-items:flex-start;
+    justify-content:flex-start;
+    padding:24px;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size:20px 20px;
+  }
+  #stageSvg{
+    background:var(--paper);
+    box-shadow:0 4px 24px rgba(0,0,0,0.5);
+    flex-shrink:0;
+  }
+  .export-bar{
+    display:flex;
+    gap:10px;
+    padding:12px 16px;
+    border-top:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+  @media (max-width:860px){
+    .layout{flex-direction:column;}
+    .sidebar{width:100%;max-height:50vh;border-right:none;border-bottom:1px solid var(--border);}
+  }
+</style>
+</head>
+<body>
+  <header class="app-header">
+    <span class="accent-dot"></span>
+    <h1>CNC Pattern Generator</h1>
+    <span class="sub">wave &middot; weave &middot; geometric panel patterns for CNC / laser cut</span>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+
+      <fieldset>
+        <legend>Units</legend>
+        <div class="field">
+          <label for="units">Units</label>
+          <select id="units">
+            <option value="mm">Millimeters (mm)</option>
+            <option value="in">Inches (in)</option>
+          </select>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Panel Size</legend>
+        <div class="field">
+          <label for="panelW">Width</label>
+          <input type="number" id="panelW" min="10" step="1" />
+        </div>
+        <div class="field">
+          <label for="panelH">Height</label>
+          <input type="number" id="panelH" min="10" step="1" />
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Pattern Settings</legend>
+        <div class="field">
+          <label for="patternType">Pattern Type</label>
+          <select id="patternType"></select>
+        </div>
+        <div class="field">
+          <label for="family">Motif</label>
+          <select id="family"></select>
+        </div>
+        <div class="hint" id="familyHint"></div>
+        <div class="field">
+          <label for="step" id="lblStep">Step</label>
+          <input type="number" id="step" min="1" step="0.5" />
+        </div>
+        <div class="field">
+          <label for="gap" id="lblGap">Gap</label>
+          <input type="number" id="gap" step="0.5" />
+        </div>
+        <div class="field">
+          <label for="offset" id="lblOffset">Offset (band pitch)</label>
+          <input type="number" id="offset" class="readonly" readonly />
+        </div>
+        <div class="field" id="fieldWaveOffset">
+          <label for="waveOffset" id="lblWaveOffset">Wave Offset</label>
+          <input type="number" id="waveOffset" step="0.5" />
+        </div>
+        <div class="field" id="fieldWidthScale">
+          <label for="widthScale" id="lblWidthScale">Width Scale %</label>
+          <input type="number" id="widthScale" min="10" step="1" />
+        </div>
+        <div class="field" id="fieldHeightScale">
+          <label for="heightScale" id="lblHeightScale">Height Scale %</label>
+          <input type="number" id="heightScale" min="1" step="1" />
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Panel Layout</legend>
+        <div class="field checkbox">
+          <input type="checkbox" id="continuous" />
+          <label for="continuous">Continuous pattern across panels</label>
+        </div>
+        <div class="field">
+          <label for="panelGap">Panel Gap</label>
+          <input type="number" id="panelGap" min="0" step="1" />
+        </div>
+        <div class="field">
+          <label for="exactMove">Nudge Distance</label>
+          <input type="number" id="exactMove" min="0.1" step="0.1" />
+        </div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button id="addPanelBtn">+ Add Panel</button>
+          <button id="dupPanelBtn">Duplicate</button>
+          <button id="delPanelBtn">Delete</button>
+        </div>
+        <div class="move-pad">
+          <button class="up" data-move="up" title="Nudge up">&uarr;</button>
+          <button class="left" data-move="left" title="Nudge left">&larr;</button>
+          <div class="center">+</div>
+          <button class="right" data-move="right" title="Nudge right">&rarr;</button>
+          <button class="down" data-move="down" title="Nudge down">&darr;</button>
+        </div>
+        <div id="panelList"></div>
+      </fieldset>
+
+    </aside>
+
+    <main class="stage">
+      <div class="stage-toolbar">
+        <div class="stats" id="stats"></div>
+        <div class="zoom-control">
+          <label for="zoom">Zoom</label>
+          <input type="range" id="zoom" min="0.25" max="4" step="0.05" />
+          <span id="zoomLabel">100%</span>
+        </div>
+      </div>
+      <div class="canvas-wrap">
+        <svg id="stageSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+      <div class="export-bar">
+        <button class="primary" id="exportSvgBtn">Export SVG</button>
+        <button class="primary" id="exportDxfBtn">Export DXF</button>
+      </div>
+    </main>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------------------------------------------------------------------
+  // Pattern types. Each pattern type owns its own list of "families"
+  // (motif presets) and its own generator function. All types share the
+  // same 6 numeric knobs (step, gap, waveOffset, widthScale, heightScale
+  // + the read-only "offset"/pitch) -- what each knob means is relabelled
+  // per pattern type in PATTERN_FIELD_CONFIG below, so the sidebar layout
+  // never has to change shape.
+  // ---------------------------------------------------------------------
+
+  // --- Wave / weave: sine bands. n = lines per band, taper = amplitude
+  // profile across those lines ('lens' pinches to an eye shape, 'zigzag'
+  // alternates +A/-A with no interpolation). ---------------------------
+  const WAVE_FAMILIES = [
+    { id:'wave1', name:'Wave 1', n:2, taper:'zigzag', hint:'Simple crossing weave.' },
+    { id:'wave2', name:'Wave 2', n:3, taper:'zigzag', hint:'Triple zigzag.' },
+    { id:'wave3', name:'Wave 3', n:4, taper:'lens',   hint:'Four-line lens weave.' },
+    { id:'wave4', name:'Wave 4', n:5, taper:'zigzag', hint:'Diamond zigzag.' },
+    { id:'wave5', name:'Wave 5', n:3, taper:'lens',   hint:'Classic eye / lens weave (reference preset).' },
+    { id:'wave6', name:'Wave 6', n:6, taper:'lens',   hint:'Dense six-line lens weave.' },
+  ];
+
+  // --- Lissajous curves: x = sin(a*t+phase), y = sin(b*t), tiled on a
+  // grid. Different integer frequency ratios a:b give very different
+  // closed-loop rosette shapes. ----------------------------------------
+  const LISSAJOUS_FAMILIES = [
+    { id:'liss-32', name:'Lissajous 3:2', a:3, b:2, hint:'Classic open-loop rosette, ratio 3:2.' },
+    { id:'liss-54', name:'Lissajous 5:4', a:5, b:4, hint:'Denser rosette, ratio 5:4.' },
+    { id:'liss-21', name:'Lissajous 2:1', a:2, b:1, hint:'Figure-eight loop, ratio 2:1.' },
+    { id:'liss-52', name:'Lissajous 5:2', a:5, b:2, hint:'Five-lobe loop, ratio 5:2.' },
+    { id:'liss-76', name:'Lissajous 7:6', a:7, b:6, hint:'Fine interlace, ratio 7:6.' },
+    { id:'liss-43', name:'Lissajous 4:3', a:4, b:3, hint:'Four-lobe loop, ratio 4:3.' },
+  ];
+
+  // --- Rose / rhodonea curves: r = cos(k*theta) in polar form, tiled on
+  // a staggered grid so neighbouring rosettes interlock. ---------------
+  const ROSE_FAMILIES = [
+    { id:'rose-2', name:'Rose 4-petal',  k:2,   thetaMax:2*Math.PI, hint:'r = cos(2θ) — four-petal rosette.' },
+    { id:'rose-3', name:'Rose 3-petal',  k:3,   thetaMax:Math.PI,   hint:'r = cos(3θ) — three-petal rosette.' },
+    { id:'rose-4', name:'Rose 8-petal',  k:4,   thetaMax:2*Math.PI, hint:'r = cos(4θ) — eight-petal rosette.' },
+    { id:'rose-5', name:'Rose 5-petal',  k:5,   thetaMax:Math.PI,   hint:'r = cos(5θ) — five-petal rosette.' },
+    { id:'rose-1_5', name:'Rose 3-lobe (k=1.5)', k:1.5, thetaMax:4*Math.PI, hint:'r = cos(1.5θ) — three broad lobes.' },
+    { id:'rose-7', name:'Rose 7-petal',  k:7,   thetaMax:Math.PI,   hint:'r = cos(7θ) — seven-petal rosette.' },
+  ];
+
+  // --- Spirals: Archimedean (linear r) or logarithmic (exponential r),
+  // with 1-3 interleaved arms, tiled on a grid. ------------------------
+  const SPIRAL_FAMILIES = [
+    { id:'spiral-arch1', name:'Spiral · single arm',  kind:'arch', arms:1, turns:2.5, hint:'Archimedean spiral, one arm.' },
+    { id:'spiral-arch2', name:'Spiral · double arm',  kind:'arch', arms:2, turns:2,   hint:'Two interleaved Archimedean arms.' },
+    { id:'spiral-arch3', name:'Spiral · triskelion',  kind:'arch', arms:3, turns:1.6, hint:'Three interleaved Archimedean arms.' },
+    { id:'spiral-log1',  name:'Spiral · logarithmic', kind:'log',  arms:1, turns:3,   b:0.18, hint:'Logarithmic (equiangular) spiral.' },
+    { id:'spiral-log2',  name:'Spiral · log double',  kind:'log',  arms:2, turns:2.5, b:0.15, hint:'Two logarithmic arms.' },
+  ];
+
+  // --- Truchet tiles: each grid tile is one of 2 orientations of a
+  // procedurally, deterministically randomised motif (arcs or
+  // diagonals) -- a classic way to get a non-repeating all-over texture
+  // from a tiny, fully reproducible rule (seeded by "Random Seed"). ----
+  const TRUCHET_FAMILIES = [
+    { id:'truchet-arc',  name:'Truchet · arcs',      style:'arc',  hint:'Randomly oriented quarter-circle arcs (classic Truchet tiling).' },
+    { id:'truchet-diag', name:'Truchet · diagonals',  style:'diag', hint:'Randomly oriented diagonal split tiles.' },
+    { id:'truchet-mix',  name:'Truchet · mixed',      style:'mix',  hint:'Random mix of arcs and diagonals per tile.' },
+  ];
+
+  // --- Zellige-style star lattice: N-point star polygons on a
+  // triangular grid, in the spirit of Moroccan zellige / Islamic
+  // geometric star motifs (simplified compass-free construction). ------
+  const ZELLIGE_FAMILIES = [
+    { id:'zellige-5',  name:'Zellige · 5-point star',  points:5,  hint:'Five-point star lattice.' },
+    { id:'zellige-6',  name:'Zellige · 6-point star',  points:6,  hint:'Six-point star lattice, triangular grid.' },
+    { id:'zellige-8',  name:'Zellige · 8-point star',  points:8,  hint:'Eight-point star lattice (khatim motif).' },
+    { id:'zellige-12', name:'Zellige · 12-point star', points:12, hint:'Twelve-point star lattice, dense interlace.' },
+  ];
+
+  // --- Hex honeycomb lattice: edge-to-edge hexagon tiling, with
+  // optional inner hexagon or radial struts. ---------------------------
+  const HEX_FAMILIES = [
+    { id:'hex-single', name:'Honeycomb · single',       variant:'single', hint:'Classic edge-to-edge hexagon lattice.' },
+    { id:'hex-double',  name:'Honeycomb · double outline', variant:'double', hint:'Hexagon lattice with a concentric inner hexagon.' },
+    { id:'hex-tri',      name:'Honeycomb · triangulated',  variant:'tri',    hint:'Hexagon lattice with radial struts to the center.' },
+  ];
+
+  const PATTERN_TYPES = [
+    { id:'wave',      name:'Wave / Weave',        families: WAVE_FAMILIES },
+    { id:'lissajous', name:'Lissajous Curves',     families: LISSAJOUS_FAMILIES },
+    { id:'rose',      name:'Rose Curves',          families: ROSE_FAMILIES },
+    { id:'spiral',    name:'Spirals',              families: SPIRAL_FAMILIES },
+    { id:'truchet',   name:'Truchet Tiles',        families: TRUCHET_FAMILIES },
+    { id:'zellige',   name:'Zellige Star Lattice', families: ZELLIGE_FAMILIES },
+    { id:'hex',       name:'Hex Honeycomb',        families: HEX_FAMILIES },
+  ];
+
+  // Per pattern type: what to call the 6 shared numeric fields, and
+  // which of the last three (wave offset / width scale / height scale)
+  // are actually used and should stay visible.
+  const PATTERN_FIELD_CONFIG = {
+    wave:      { step:'Step', gap:'Gap', offset:'Offset (band pitch)', waveOffset:'Wave Offset', widthScale:'Width Scale %', heightScale:'Height Scale %', showWaveOffset:true, showWidthScale:true, showHeightScale:true },
+    lissajous: { step:'Cell Size', gap:'Cell Spacing', offset:'Cell Pitch', waveOffset:'Phase (deg)', widthScale:'X Amplitude %', heightScale:'Y Amplitude %', showWaveOffset:true, showWidthScale:true, showHeightScale:true },
+    rose:      { step:'Cell Size', gap:'Cell Spacing', offset:'Cell Pitch', waveOffset:'Rotation (deg)', widthScale:'X Scale %', heightScale:'Y Scale %', showWaveOffset:true, showWidthScale:true, showHeightScale:true },
+    spiral:    { step:'Cell Size', gap:'Cell Spacing', offset:'Cell Pitch', waveOffset:'Rotation (deg)', widthScale:'X Scale %', heightScale:'Y Scale %', showWaveOffset:true, showWidthScale:true, showHeightScale:true },
+    truchet:   { step:'Tile Size', gap:'Tile Inset', offset:'Tile Pitch', waveOffset:'Random Seed', widthScale:'', heightScale:'', showWaveOffset:true, showWidthScale:false, showHeightScale:false },
+    zellige:   { step:'Cell Size', gap:'Cell Spacing', offset:'Cell Pitch', waveOffset:'Rotation (deg)', widthScale:'Star Radius %', heightScale:'Inner Ratio %', showWaveOffset:true, showWidthScale:true, showHeightScale:true },
+    hex:       { step:'Hex Size', gap:'Hex Spacing', offset:'Hex Pitch', waveOffset:'', widthScale:'', heightScale:'', showWaveOffset:false, showWidthScale:false, showHeightScale:false },
+  };
+
+  const UNIT_TO_MM = { mm:1, in:25.4 };
+
+  const state = {
+    units:'mm',
+    panelW:500,
+    panelH:500,
+    step:23,
+    gap:-2,
+    waveOffset:0,
+    widthScale:100,
+    heightScale:100,
+    patternType:'wave',
+    family:'wave5',
+    continuous:true,
+    panelGap:10,
+    exactMove:5,
+    zoom:1,
+    panels:[ { id:1, col:0, row:0, dx:0, dy:0 } ],
+    selectedId:1,
+    nextId:2,
+  };
+
+  function currentPatternType(){
+    return PATTERN_TYPES.find(p => p.id === state.patternType) || PATTERN_TYPES[0];
+  }
+
+  function currentFamily(){
+    const pt = currentPatternType();
+    return pt.families.find(f => f.id === state.family) || pt.families[0];
+  }
+
+  // Read-only "Offset" field: the repeat pitch of one grid cell / band.
+  function cellPitchMM(){
+    const u = UNIT_TO_MM[state.units];
+    const stepMM = state.step * u;
+    const gapMM = state.gap * u;
+    if (state.patternType === 'wave'){
+      const fam = currentFamily();
+      return (fam.n - 1) * stepMM + gapMM;
+    }
+    return stepMM + gapMM;
+  }
+
+  // -----------------------------------------------------------------
+  // Generic polyline clipping to an axis-aligned rectangle. Splits a
+  // polyline into segments wherever it crosses in or out of the box,
+  // interpolating both x and y at every boundary crossing.
+  // -----------------------------------------------------------------
+  function clipSegment(pts, getter, vMin, vMax){
+    const segments = [];
+    let current = [];
+    const inside = p => { const v = getter(p); return v >= vMin && v <= vMax; };
+    function interp(p1, p2, vBound){
+      const v1 = getter(p1), v2 = getter(p2);
+      const t = (vBound - v1) / (v2 - v1);
+      return { x: p1.x + t * (p2.x - p1.x), y: p1.y + t * (p2.y - p1.y) };
+    }
+    for (let i = 0; i < pts.length; i++){
+      const p = pts[i];
+      const prev = i > 0 ? pts[i-1] : null;
+      if (inside(p)){
+        if (prev && !inside(prev)){
+          const bound = getter(prev) < vMin ? vMin : vMax;
+          current.push(interp(prev, p, bound));
+        }
+        current.push(p);
+      } else {
+        if (prev && inside(prev)){
+          const bound = getter(p) < vMin ? vMin : vMax;
+          current.push(interp(prev, p, bound));
+          if (current.length > 1) segments.push(current);
+          current = [];
+        } else if (prev && !inside(prev)){
+          const v1 = getter(prev), v2 = getter(p);
+          const crossedDown = v1 > vMax && v2 < vMin;
+          const crossedUp = v1 < vMin && v2 > vMax;
+          if (crossedDown || crossedUp){
+            const b1 = v1 > vMax ? vMax : vMin;
+            const b2 = v2 > vMax ? vMax : vMin;
+            current = [ interp(prev, p, b1), interp(prev, p, b2) ];
+            segments.push(current);
+            current = [];
+          }
+        }
+      }
+    }
+    if (current.length > 1) segments.push(current);
+    return segments;
+  }
+
+  function clipPolylineRect(pts, x0, y0, x1, y1){
+    const out = [];
+    for (const segY of clipSegment(pts, p => p.y, y0, y1)){
+      for (const segX of clipSegment(segY, p => p.x, x0, x1)){
+        out.push(segX);
+      }
+    }
+    return out;
+  }
+
+  // -----------------------------------------------------------------
+  // Shared square grid of cell centers, in panel-local mm coordinates,
+  // covering the panel (plus a margin) so patterns tile cleanly across
+  // panel edges. When "continuous" is on, the grid is anchored to the
+  // panel's absolute X position so adjacent panels' cells line up.
+  // `stagger` offsets every other row by half a cell (triangular/hex
+  // packing), matching the wave pattern's own row-parity offset.
+  // -----------------------------------------------------------------
+  function gridCells(panel, panelWmm, panelHmm, cellPitch, stagger){
+    const u = UNIT_TO_MM[state.units];
+    const panelGapMM = state.panelGap * u;
+    const globalX = state.continuous ? panel.col * (panelWmm + panelGapMM) + panel.dx * u : 0;
+    const globalY = panel.dy * u;
+    const margin = cellPitch;
+    const colStart = Math.floor((globalX - margin) / cellPitch) - 1;
+    const colEnd = Math.ceil((globalX + panelWmm + margin) / cellPitch) + 1;
+    const rowStart = Math.floor((globalY - margin) / cellPitch) - 1;
+    const rowEnd = Math.ceil((globalY + panelHmm + margin) / cellPitch) + 1;
+    const cells = [];
+    for (let r = rowStart; r <= rowEnd; r++){
+      const rowShift = (stagger && (((r % 2) + 2) % 2 === 1)) ? cellPitch / 2 : 0;
+      for (let c = colStart; c <= colEnd; c++){
+        const cxAbs = c * cellPitch + cellPitch / 2 + rowShift;
+        const cyAbs = r * cellPitch + cellPitch / 2;
+        cells.push({ cx: cxAbs - globalX, cy: cyAbs - globalY, col: c, row: r });
+      }
+    }
+    return cells;
+  }
+
+  // -----------------------------------------------------------------
+  // Wave / weave generator (sine bands) -- the original algorithm.
+  // -----------------------------------------------------------------
+  function generateWaveLines(panel){
+    const fam = currentFamily();
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u;
+    const panelHmm = state.panelH * u;
+    const stepMM = state.step * u;
+    const gapMM = state.gap * u;
+    const waveOffsetMM = state.waveOffset * u;
+    const panelGapMM = state.panelGap * u;
+
+    const lambda = 2 * stepMM * (state.widthScale / 100);
+    const A = 0.9 * stepMM * (state.heightScale / 100);
+    const phaseShift = lambda !== 0 ? (waveOffsetMM / lambda) * 2 * Math.PI : 0;
+    const bandPitch = (fam.n - 1) * stepMM + gapMM;
+
+    const globalX = state.continuous
+      ? panel.col * (panelWmm + panelGapMM) + panel.dx
+      : 0;
+
+    const dx = Math.max(0.75, Math.abs(lambda) / 40 || 0.75);
+    const margin = Math.abs(A) + Math.abs(stepMM) + Math.abs(bandPitch);
+    const bStart = bandPitch !== 0 ? Math.floor(-margin / bandPitch) - 1 : 0;
+    const bEnd = bandPitch !== 0 ? Math.ceil((panelHmm + margin) / bandPitch) + 1 : 0;
+
+    const rawLines = [];
+    for (let bIdx = bStart; bIdx <= bEnd; bIdx++){
+      const parity = (((bIdx % 2) + 2) % 2 === 1) ? Math.PI : 0;
+      for (let k = 0; k < fam.n; k++){
+        let Ak;
+        if (fam.taper === 'lens'){
+          Ak = fam.n > 1 ? A * (1 - 2 * k / (fam.n - 1)) : 0;
+        } else {
+          Ak = (k % 2 === 0) ? A : -A;
+        }
+        const baseline = bIdx * bandPitch + k * stepMM;
+        const pts = [];
+        for (let x = 0; x <= panelWmm + 1e-6; x += dx){
+          const xx = Math.min(x, panelWmm);
+          const y = baseline + Ak * Math.sin(2 * Math.PI * (globalX + xx) / lambda + parity + phaseShift);
+          pts.push({ x: xx, y });
+          if (xx >= panelWmm) break;
+        }
+        rawLines.push(pts);
+      }
+    }
+
+    const clipped = [];
+    for (const line of rawLines){
+      for (const seg of clipPolylineRect(line, 0, 0, panelWmm, panelHmm)){
+        clipped.push(seg);
+      }
+    }
+    return clipped;
+  }
+
+  // -----------------------------------------------------------------
+  // Lissajous curves: x = sin(a*t + phase), y = sin(b*t), one closed
+  // loop per grid cell.
+  // -----------------------------------------------------------------
+  function generateLissajousLines(panel){
+    const fam = currentFamily();
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u, panelHmm = state.panelH * u;
+    const cellPitch = cellPitchMM();
+    const scaleX = state.widthScale / 100, scaleY = state.heightScale / 100;
+    const phase = state.waveOffset * Math.PI / 180;
+    const cells = gridCells(panel, panelWmm, panelHmm, cellPitch, false);
+    const radius = (cellPitch / 2) * 0.9;
+    const N = 160;
+    const lines = [];
+    for (const { cx, cy } of cells){
+      const pts = [];
+      for (let i = 0; i <= N; i++){
+        const t = (i / N) * 2 * Math.PI;
+        pts.push({
+          x: cx + radius * scaleX * Math.sin(fam.a * t + phase),
+          y: cy + radius * scaleY * Math.sin(fam.b * t),
+        });
+      }
+      for (const seg of clipPolylineRect(pts, 0, 0, panelWmm, panelHmm)) lines.push(seg);
+    }
+    return lines;
+  }
+
+  // -----------------------------------------------------------------
+  // Rose / rhodonea curves: r = cos(k*theta) in polar form, one rosette
+  // per grid cell (grid staggered so rosettes interlock).
+  // -----------------------------------------------------------------
+  function generateRoseLines(panel){
+    const fam = currentFamily();
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u, panelHmm = state.panelH * u;
+    const cellPitch = cellPitchMM();
+    const scaleX = state.widthScale / 100, scaleY = state.heightScale / 100;
+    const rot = state.waveOffset * Math.PI / 180;
+    const cells = gridCells(panel, panelWmm, panelHmm, cellPitch, true);
+    const radius = (cellPitch / 2) * 0.92;
+    const N = 220;
+    const lines = [];
+    for (const { cx, cy } of cells){
+      const pts = [];
+      for (let i = 0; i <= N; i++){
+        const theta = (i / N) * fam.thetaMax;
+        const r = radius * Math.cos(fam.k * theta);
+        const a = theta + rot;
+        pts.push({ x: cx + r * Math.cos(a) * scaleX, y: cy + r * Math.sin(a) * scaleY });
+      }
+      for (const seg of clipPolylineRect(pts, 0, 0, panelWmm, panelHmm)) lines.push(seg);
+    }
+    return lines;
+  }
+
+  // -----------------------------------------------------------------
+  // Spirals: 1-3 interleaved Archimedean (linear r) or logarithmic
+  // (exponential r) arms, one motif per grid cell.
+  // -----------------------------------------------------------------
+  function generateSpiralLines(panel){
+    const fam = currentFamily();
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u, panelHmm = state.panelH * u;
+    const cellPitch = cellPitchMM();
+    const scaleX = state.widthScale / 100, scaleY = state.heightScale / 100;
+    const rot = state.waveOffset * Math.PI / 180;
+    const cells = gridCells(panel, panelWmm, panelHmm, cellPitch, false);
+    const maxR = (cellPitch / 2) * 0.92;
+    const N = 140;
+    const lines = [];
+    for (const { cx, cy } of cells){
+      for (let armIdx = 0; armIdx < fam.arms; armIdx++){
+        const armPhase = rot + armIdx * (2 * Math.PI / fam.arms);
+        const pts = [];
+        if (fam.kind === 'arch'){
+          for (let i = 0; i <= N; i++){
+            const t = i / N;
+            const theta = t * fam.turns * 2 * Math.PI;
+            const r = maxR * t;
+            pts.push({ x: cx + r * Math.cos(theta + armPhase) * scaleX, y: cy + r * Math.sin(theta + armPhase) * scaleY });
+          }
+        } else {
+          const thetaEnd = fam.turns * 2 * Math.PI;
+          const r0 = maxR / Math.exp(fam.b * thetaEnd);
+          for (let i = 0; i <= N; i++){
+            const t = i / N;
+            const theta = t * thetaEnd;
+            const r = r0 * Math.exp(fam.b * theta);
+            pts.push({ x: cx + r * Math.cos(theta + armPhase) * scaleX, y: cy + r * Math.sin(theta + armPhase) * scaleY });
+          }
+        }
+        for (const seg of clipPolylineRect(pts, 0, 0, panelWmm, panelHmm)) lines.push(seg);
+      }
+    }
+    return lines;
+  }
+
+  // Deterministic pseudo-random in [0,1) from a cell coordinate + seed,
+  // so re-rendering the same settings always reproduces the same tiling.
+  function hash01(x, y, seed){
+    const h = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453;
+    return h - Math.floor(h);
+  }
+
+  function quarterArc(center, r, a0, a1, N){
+    N = N || 20;
+    const pts = [];
+    for (let i = 0; i <= N; i++){
+      const t = a0 + (a1 - a0) * i / N;
+      pts.push({ x: center.x + r * Math.cos(t), y: center.y + r * Math.sin(t) });
+    }
+    return pts;
+  }
+
+  // -----------------------------------------------------------------
+  // Truchet tiles: each grid tile gets a deterministically randomised
+  // orientation of either two quarter-circle arcs or a diagonal split,
+  // producing a non-repeating all-over texture from a tiny seeded rule.
+  // -----------------------------------------------------------------
+  function generateTruchetLines(panel){
+    const fam = currentFamily();
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u, panelHmm = state.panelH * u;
+    const tileSize = Math.max(1, state.step * u);
+    const inset = (state.gap * u) || 0;
+    const seed = state.waveOffset || 0;
+    const cells = gridCells(panel, panelWmm, panelHmm, tileSize, false);
+    const h = Math.max(0.5, (tileSize - inset) / 2);
+    const rawLines = [];
+    for (const { cx, cy, col, row } of cells){
+      const left = cx - h, right = cx + h, top = cy - h, bottom = cy + h;
+      const TL = { x: left, y: top }, TR = { x: right, y: top }, BL = { x: left, y: bottom }, BR = { x: right, y: bottom };
+      const rnd = hash01(col, row, seed);
+      let style = fam.style;
+      if (style === 'mix') style = rnd < 0.5 ? 'arc' : 'diag';
+      const rnd2 = hash01(col + 0.37, row + 0.71, seed);
+      if (style === 'arc'){
+        if (rnd2 < 0.5){
+          rawLines.push(quarterArc(TL, h, Math.PI, 1.5 * Math.PI));
+          rawLines.push(quarterArc(BR, h, Math.PI, 1.5 * Math.PI));
+        } else {
+          rawLines.push(quarterArc(TR, h, 0.5 * Math.PI, Math.PI));
+          rawLines.push(quarterArc(BL, h, -0.5 * Math.PI, 0));
+        }
+      } else {
+        rawLines.push(rnd2 < 0.5 ? [TL, BR] : [TR, BL]);
+      }
+    }
+    const clipped = [];
+    for (const line of rawLines){
+      for (const seg of clipPolylineRect(line, 0, 0, panelWmm, panelHmm)) clipped.push(seg);
+    }
+    return clipped;
+  }
+
+  // -----------------------------------------------------------------
+  // Zellige-style star lattice: N-point star polygons (outer/inner
+  // radius alternating) on a triangular grid, echoing Moroccan zellige
+  // / Islamic geometric star motifs.
+  // -----------------------------------------------------------------
+  function generateZelligeLines(panel){
+    const fam = currentFamily();
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u, panelHmm = state.panelH * u;
+    const cellPitch = cellPitchMM();
+    const rot = state.waveOffset * Math.PI / 180;
+    const Ro = (cellPitch / 2) * Math.max(0.1, state.widthScale / 100);
+    const innerRatio = Math.min(0.95, Math.max(0.05, state.heightScale / 100));
+    const Ri = Ro * innerRatio;
+    const cells = gridCells(panel, panelWmm, panelHmm, cellPitch, true);
+    const lines = [];
+    for (const { cx, cy } of cells){
+      const pts = [];
+      const total = fam.points * 2;
+      for (let i = 0; i <= total; i++){
+        const idx = i % total;
+        const angle = idx * Math.PI / fam.points - Math.PI / 2 + rot;
+        const r = idx % 2 === 0 ? Ro : Ri;
+        pts.push({ x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) });
+      }
+      for (const seg of clipPolylineRect(pts, 0, 0, panelWmm, panelHmm)) lines.push(seg);
+    }
+    return lines;
+  }
+
+  function hexCorners(cx, cy, R){
+    const pts = [];
+    for (let i = 0; i <= 6; i++){
+      const a = i * Math.PI / 3;
+      pts.push({ x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) });
+    }
+    return pts;
+  }
+
+  // -----------------------------------------------------------------
+  // Hex honeycomb lattice: proper edge-to-edge flat-top hexagon tiling.
+  // -----------------------------------------------------------------
+  function generateHexLines(panel){
+    const fam = currentFamily();
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u, panelHmm = state.panelH * u;
+    const gapMM = state.gap * u;
+    const R = Math.max(1, (state.step * u) / 2);
+    const colSpacing = 1.5 * R + gapMM;
+    const rowSpacing = Math.sqrt(3) * R + gapMM;
+    const panelGapMM = state.panelGap * u;
+    const globalX = state.continuous ? panel.col * (panelWmm + panelGapMM) + panel.dx * u : 0;
+    const globalY = panel.dy * u;
+    const colStart = Math.floor((globalX - colSpacing) / colSpacing) - 1;
+    const colEnd = Math.ceil((globalX + panelWmm + colSpacing) / colSpacing) + 1;
+    const lines = [];
+    for (let c = colStart; c <= colEnd; c++){
+      const xAbs = c * colSpacing;
+      const rowOffset = (((c % 2) + 2) % 2 === 1) ? rowSpacing / 2 : 0;
+      const rowStart = Math.floor((globalY - rowSpacing - rowOffset) / rowSpacing) - 1;
+      const rowEnd = Math.ceil((globalY + panelHmm + rowSpacing) / rowSpacing) + 1;
+      for (let r = rowStart; r <= rowEnd; r++){
+        const yAbs = r * rowSpacing + rowOffset;
+        const cx = xAbs - globalX, cy = yAbs - globalY;
+        const outer = hexCorners(cx, cy, R * 0.98);
+        for (const seg of clipPolylineRect(outer, 0, 0, panelWmm, panelHmm)) lines.push(seg);
+        if (fam.variant === 'double'){
+          const inner = hexCorners(cx, cy, R * 0.6);
+          for (const seg of clipPolylineRect(inner, 0, 0, panelWmm, panelHmm)) lines.push(seg);
+        } else if (fam.variant === 'tri'){
+          for (let i = 0; i < 6; i++){
+            const seg = [ { x: cx, y: cy }, outer[i] ];
+            for (const s of clipPolylineRect(seg, 0, 0, panelWmm, panelHmm)) lines.push(s);
+          }
+        }
+      }
+    }
+    return lines;
+  }
+
+  // -----------------------------------------------------------------
+  // Dispatcher: every pattern-type generator returns a flat list of
+  // clipped polylines (arrays of {x,y}), already in panel-local mm
+  // coordinates -- this is the only thing render()/export needs.
+  // -----------------------------------------------------------------
+  function generatePanelLines(panel){
+    switch (state.patternType){
+      case 'wave': return generateWaveLines(panel);
+      case 'lissajous': return generateLissajousLines(panel);
+      case 'rose': return generateRoseLines(panel);
+      case 'spiral': return generateSpiralLines(panel);
+      case 'truchet': return generateTruchetLines(panel);
+      case 'zellige': return generateZelligeLines(panel);
+      case 'hex': return generateHexLines(panel);
+      default: return [];
+    }
+  }
+
+  function panelLayout(panel){
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u;
+    const panelGapMM = state.panelGap * u;
+    return {
+      x: panel.col * (panelWmm + panelGapMM) + panel.dx * u,
+      y: panel.row * 0 + panel.dy * u,
+    };
+  }
+
+  // ---------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------
+  const svg = document.getElementById('stageSvg');
+
+  function render(){
+    readInputs();
+    syncDerivedFields();
+
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u;
+    const panelHmm = state.panelH * u;
+
+    let maxX = 0, maxY = 0;
+    const panelGeoms = state.panels.map(panel => {
+      const pos = panelLayout(panel);
+      const lines = generatePanelLines(panel);
+      maxX = Math.max(maxX, pos.x + panelWmm);
+      maxY = Math.max(maxY, pos.y + panelHmm);
+      return { panel, pos, lines };
+    });
+
+    const pad = Math.max(20, panelWmm * 0.04);
+    const totalW = maxX + pad * 2;
+    const totalH = maxY + pad * 2;
+
+    svg.setAttribute('viewBox', `0 0 ${totalW} ${totalH}`);
+    const pxPerMM = 1.4 * state.zoom;
+    svg.setAttribute('width', Math.round(totalW * pxPerMM));
+    svg.setAttribute('height', Math.round(totalH * pxPerMM));
+    svg.innerHTML = '';
+
+    const gRoot = document.createElementNS(svg.namespaceURI, 'g');
+    gRoot.setAttribute('transform', `translate(${pad},${pad})`);
+    svg.appendChild(gRoot);
+
+    for (const { panel, pos, lines } of panelGeoms){
+      const gPanel = document.createElementNS(svg.namespaceURI, 'g');
+      gPanel.setAttribute('transform', `translate(${pos.x},${pos.y})`);
+
+      const rect = document.createElementNS(svg.namespaceURI, 'rect');
+      rect.setAttribute('x', 0);
+      rect.setAttribute('y', 0);
+      rect.setAttribute('width', panelWmm);
+      rect.setAttribute('height', panelHmm);
+      rect.setAttribute('fill', 'var(--paper)');
+      rect.setAttribute('stroke', panel.id === state.selectedId ? 'var(--accent)' : 'var(--paper-line)');
+      rect.setAttribute('stroke-width', panel.id === state.selectedId ? 1.5 : 1);
+      gPanel.appendChild(rect);
+
+      for (const seg of lines){
+        const pl = document.createElementNS(svg.namespaceURI, 'polyline');
+        pl.setAttribute('points', seg.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '));
+        pl.setAttribute('fill', 'none');
+        pl.setAttribute('stroke', 'var(--accent)');
+        pl.setAttribute('stroke-width', Math.max(0.4, panelWmm * 0.0016));
+        pl.setAttribute('vector-effect', 'non-scaling-stroke');
+        gPanel.appendChild(pl);
+      }
+
+      gPanel.style.cursor = 'pointer';
+      gPanel.addEventListener('click', () => { state.selectedId = panel.id; render(); });
+      gRoot.appendChild(gPanel);
+    }
+
+    renderPanelList();
+    renderStats(panelGeoms);
+  }
+
+  function renderStats(panelGeoms){
+    const pt = currentPatternType();
+    const fam = currentFamily();
+    const pitch = cellPitchMM();
+    const totalLines = panelGeoms.reduce((sum, g) => sum + g.lines.length, 0);
+    const stats = document.getElementById('stats');
+    stats.innerHTML = `
+      <span>Type: <b>${pt.name}</b></span>
+      <span>Motif: <b>${fam.name}</b></span>
+      <span>Pitch: <b>${pitch.toFixed(2)} mm</b></span>
+      <span>Panels: <b>${state.panels.length}</b></span>
+      <span>Segments: <b>${totalLines}</b></span>
+    `;
+  }
+
+  function renderPanelList(){
+    const list = document.getElementById('panelList');
+    list.innerHTML = '';
+    state.panels.forEach(panel => {
+      const row = document.createElement('div');
+      row.className = 'panel-row' + (panel.id === state.selectedId ? ' selected' : '');
+      row.innerHTML = `<span>Panel #${panel.id} &middot; col ${panel.col} &middot; dx ${panel.dx.toFixed(1)} dy ${panel.dy.toFixed(1)}</span>`;
+      row.addEventListener('click', () => { state.selectedId = panel.id; render(); });
+      list.appendChild(row);
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Inputs <-> state
+  // ---------------------------------------------------------------------
+  const inputIds = ['units','panelW','panelH','step','gap','waveOffset','widthScale','heightScale','family','continuous','panelGap','exactMove','zoom'];
+
+  function readInputs(){
+    state.units = document.getElementById('units').value;
+    state.panelW = parseFloat(document.getElementById('panelW').value) || state.panelW;
+    state.panelH = parseFloat(document.getElementById('panelH').value) || state.panelH;
+    state.step = parseFloat(document.getElementById('step').value) || state.step;
+    state.gap = parseFloat(document.getElementById('gap').value) || 0;
+    state.waveOffset = parseFloat(document.getElementById('waveOffset').value) || 0;
+    state.widthScale = parseFloat(document.getElementById('widthScale').value) || state.widthScale;
+    state.heightScale = parseFloat(document.getElementById('heightScale').value) || state.heightScale;
+    state.patternType = document.getElementById('patternType').value;
+    state.family = document.getElementById('family').value;
+    state.continuous = document.getElementById('continuous').checked;
+    state.panelGap = parseFloat(document.getElementById('panelGap').value) || 0;
+    state.exactMove = parseFloat(document.getElementById('exactMove').value) || state.exactMove;
+    state.zoom = parseFloat(document.getElementById('zoom').value) || 1;
+  }
+
+  function syncDerivedFields(){
+    document.getElementById('offset').value = cellPitchMM().toFixed(2);
+    document.getElementById('familyHint').textContent = currentFamily().hint;
+    document.getElementById('zoomLabel').textContent = Math.round(state.zoom * 100) + '%';
+  }
+
+  function updatePatternUI(){
+    const cfg = PATTERN_FIELD_CONFIG[state.patternType];
+    document.getElementById('lblStep').textContent = cfg.step;
+    document.getElementById('lblGap').textContent = cfg.gap;
+    document.getElementById('lblOffset').textContent = cfg.offset;
+    document.getElementById('lblWaveOffset').textContent = cfg.waveOffset;
+    document.getElementById('lblWidthScale').textContent = cfg.widthScale;
+    document.getElementById('lblHeightScale').textContent = cfg.heightScale;
+    document.getElementById('fieldWaveOffset').style.display = cfg.showWaveOffset ? '' : 'none';
+    document.getElementById('fieldWidthScale').style.display = cfg.showWidthScale ? '' : 'none';
+    document.getElementById('fieldHeightScale').style.display = cfg.showHeightScale ? '' : 'none';
+  }
+
+  function populateFamilySelect(){
+    const pt = currentPatternType();
+    const sel = document.getElementById('family');
+    sel.innerHTML = pt.families.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+    sel.value = state.family;
+  }
+
+  function writeInputsFromState(){
+    document.getElementById('units').value = state.units;
+    document.getElementById('panelW').value = state.panelW;
+    document.getElementById('panelH').value = state.panelH;
+    document.getElementById('step').value = state.step;
+    document.getElementById('gap').value = state.gap;
+    document.getElementById('waveOffset').value = state.waveOffset;
+    document.getElementById('widthScale').value = state.widthScale;
+    document.getElementById('heightScale').value = state.heightScale;
+    document.getElementById('continuous').checked = state.continuous;
+    document.getElementById('panelGap').value = state.panelGap;
+    document.getElementById('exactMove').value = state.exactMove;
+    document.getElementById('zoom').value = state.zoom;
+
+    const typeSel = document.getElementById('patternType');
+    typeSel.innerHTML = PATTERN_TYPES.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    typeSel.value = state.patternType;
+
+    populateFamilySelect();
+    updatePatternUI();
+  }
+
+  document.getElementById('patternType').addEventListener('change', () => {
+    state.patternType = document.getElementById('patternType').value;
+    state.family = currentPatternType().families[0].id;
+    populateFamilySelect();
+    updatePatternUI();
+    render();
+  });
+
+  inputIds.forEach(id => {
+    const el = document.getElementById(id);
+    const evt = (el.type === 'checkbox' || el.tagName === 'SELECT') ? 'change' : 'input';
+    el.addEventListener(evt, render);
+  });
+
+  // ---------------------------------------------------------------------
+  // Panel management
+  // ---------------------------------------------------------------------
+  function selectedPanel(){
+    return state.panels.find(p => p.id === state.selectedId) || state.panels[0];
+  }
+
+  document.getElementById('addPanelBtn').addEventListener('click', () => {
+    const panel = { id: state.nextId++, col: state.panels.length, row: 0, dx: 0, dy: 0 };
+    state.panels.push(panel);
+    state.selectedId = panel.id;
+    render();
+  });
+
+  document.getElementById('dupPanelBtn').addEventListener('click', () => {
+    const src = selectedPanel();
+    if (!src) return;
+    const panel = { id: state.nextId++, col: state.panels.length, row: src.row, dx: src.dx, dy: src.dy };
+    state.panels.push(panel);
+    state.selectedId = panel.id;
+    render();
+  });
+
+  document.getElementById('delPanelBtn').addEventListener('click', () => {
+    if (state.panels.length <= 1) return;
+    const idx = state.panels.findIndex(p => p.id === state.selectedId);
+    if (idx === -1) return;
+    state.panels.splice(idx, 1);
+    state.panels.forEach((p, i) => { p.col = i; });
+    state.selectedId = state.panels[Math.max(0, idx - 1)].id;
+    render();
+  });
+
+  document.querySelectorAll('.move-pad button[data-move]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const panel = selectedPanel();
+      if (!panel) return;
+      const d = state.exactMove;
+      switch (btn.dataset.move){
+        case 'up': panel.dy -= d; break;
+        case 'down': panel.dy += d; break;
+        case 'left': panel.dx -= d; break;
+        case 'right': panel.dx += d; break;
+      }
+      render();
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // Export
+  // ---------------------------------------------------------------------
+  function download(filename, mime, content){
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function buildGeometry(){
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u;
+    const panelHmm = state.panelH * u;
+    let maxX = 0, maxY = 0;
+    const panels = state.panels.map(panel => {
+      const pos = panelLayout(panel);
+      const lines = generatePanelLines(panel);
+      maxX = Math.max(maxX, pos.x + panelWmm);
+      maxY = Math.max(maxY, pos.y + panelHmm);
+      return { panel, pos, lines };
+    });
+    return { panels, panelWmm, panelHmm, totalW: maxX, totalH: maxY };
+  }
+
+  function exportSVG(){
+    const { panels, panelWmm, panelHmm, totalW, totalH } = buildGeometry();
+    const pad = Math.max(10, panelWmm * 0.02);
+    const w = totalW + pad * 2, h = totalH + pad * 2;
+    let body = '';
+    for (const { pos, lines } of panels){
+      body += `<g transform="translate(${pos.x + pad},${pos.y + pad})">`;
+      body += `<rect x="0" y="0" width="${panelWmm}" height="${panelHmm}" fill="none" stroke="#000" stroke-width="0.3"/>`;
+      for (const seg of lines){
+        const pts = seg.map(p => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(' ');
+        body += `<polyline points="${pts}" fill="none" stroke="#000" stroke-width="0.3"/>`;
+      }
+      body += `</g>`;
+    }
+    const svgOut = `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}mm" height="${h}mm" viewBox="0 0 ${w} ${h}">\n${body}\n</svg>`;
+    download('cnc-pattern.svg', 'image/svg+xml', svgOut);
+  }
+
+  function polylineToDXF(points, layer, totalH){
+    const lines = ['0','LWPOLYLINE','8',layer,'90',String(points.length),'70','0'];
+    for (const p of points){
+      lines.push('10', p.x.toFixed(4), '20', (totalH - p.y).toFixed(4));
+    }
+    return lines.join('\n');
+  }
+
+  function exportDXF(){
+    const { panels, panelWmm, panelHmm, totalW, totalH } = buildGeometry();
+    const pad = Math.max(10, panelWmm * 0.02);
+    const w = totalW + pad * 2, h = totalH + pad * 2;
+    const insunits = state.units === 'in' ? 1 : 4;
+
+    const entities = [];
+    for (const { pos, lines } of panels){
+      const ox = pos.x + pad, oy = pos.y + pad;
+      const rectPts = [
+        { x: ox, y: oy }, { x: ox + panelWmm, y: oy },
+        { x: ox + panelWmm, y: oy + panelHmm }, { x: ox, y: oy + panelHmm },
+        { x: ox, y: oy },
+      ];
+      entities.push(polylineToDXF(rectPts, 'PANEL', h));
+      for (const seg of lines){
+        const abs = seg.map(p => ({ x: p.x + ox, y: p.y + oy }));
+        entities.push(polylineToDXF(abs, 'WAVE', h));
+      }
+    }
+
+    const dxf = [
+      '0','SECTION','2','HEADER',
+      '9','$INSUNITS','70',String(insunits),
+      '0','ENDSEC',
+      '0','SECTION','2','TABLES',
+      '0','TABLE','2','LAYER','70','2',
+      '0','LAYER','2','PANEL','70','0','62','7','6','CONTINUOUS',
+      '0','LAYER','2','WAVE','70','0','62','1','6','CONTINUOUS',
+      '0','ENDTAB',
+      '0','ENDSEC',
+      '0','SECTION','2','ENTITIES',
+      entities.join('\n'),
+      '0','ENDSEC',
+      '0','EOF',
+    ].join('\n');
+
+    download('cnc-pattern.dxf', 'application/dxf', dxf);
+  }
+
+  document.getElementById('exportSvgBtn').addEventListener('click', exportSVG);
+  document.getElementById('exportDxfBtn').addEventListener('click', exportDXF);
+
+  // ---------------------------------------------------------------------
+  // Boot
+  // ---------------------------------------------------------------------
+  writeInputsFromState();
+  render();
+})();
+</script>
+</body>
+</html>
