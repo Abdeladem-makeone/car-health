@@ -1,169 +1,212 @@
+<div align="center">
+
 # CNC Pattern Generator
 
-Single-file web app that generates parametric wave/weave patterns for
-CNC-cut decorative panels (MDF, plexiglass, plywood) and exports them as
-SVG or DXF for CAM software.
+**Générateur de motifs paramétriques pour découpe CNC et laser**
 
-Open `cnc-pattern-generator.html` directly in a browser — no build step, no
-dependencies, no server required.
+Une application web mono-fichier qui génère des motifs décoratifs
+(ondes, tressage, courbes de Lissajous, rosaces, spirales, pavages de
+Truchet, treillis d'étoiles zellige, nid d'abeille) pour panneaux
+découpés au CNC ou au laser — MDF, plexiglass, contreplaqué — et les
+exporte en SVG ou DXF, prêts pour un logiciel de CAM.
 
-## Features
+</div>
 
-- **Panel size** in millimeters or inches.
-- **7 pattern types**, 33 motifs total, each built on different math —
-  not just sine waves:
-  - **Wave / Weave** (6 motifs) — sine bands, from simple zigzag weaves
-    to the classic crossing "eye / lens" pattern (`Wave 5`, the
-    reference preset from the original desktop tool this reproduces).
-  - **Lissajous Curves** (6 motifs) — parametric `x=sin(a·t+phase)`,
-    `y=sin(b·t)` closed loops tiled on a grid, one integer frequency
-    ratio per motif (3:2, 5:4, 2:1, 5:2, 7:6, 4:3).
-  - **Rose Curves** (6 motifs) — polar rhodonea curves `r=cos(k·θ)`,
-    tiled on a staggered grid so rosettes interlock.
-  - **Spirals** (5 motifs) — Archimedean (linear radius) and
-    logarithmic (exponential radius) spirals, 1–3 interleaved arms.
-  - **Truchet Tiles** (3 motifs) — each grid tile gets a deterministic,
-    seeded pseudo-random orientation of arcs or diagonals, giving a
-    non-repeating all-over texture from a tiny reproducible rule.
-  - **Zellige Star Lattice** (4 motifs) — N-point star polygons on a
-    triangular grid, in the spirit of Moroccan zellige / Islamic
-    geometric star motifs (5/6/8/12-point).
-  - **Hex Honeycomb** (3 motifs) — proper edge-to-edge flat-top hexagon
-    tiling, with optional inner hexagon or radial struts.
+---
 
-  The sidebar's 6 numeric knobs (Step, Gap, Offset, Wave Offset, Width
-  Scale %, Height Scale %) are shared across all pattern types but are
-  relabelled per type (e.g. "Wave Offset" becomes "Random Seed" for
-  Truchet tiles, "Rotation (deg)" for rose curves/spirals/zellige).
-- **Multi-panel layout** in a single row, with per-panel manual nudge
-  (dx/dy) on top of the automatic position, and an optional "Continuous
-  Pattern" mode that keeps every pattern type's grid/phase aligned across
-  panel boundaries so adjacent panels tile seamlessly.
-- **Zoom** control for the live SVG preview.
-- **Export to SVG** (vector paths, millimeter-scaled viewBox) and
-  **Export to DXF** (ASCII R12, `LWPOLYLINE` entities on `PANEL` and
-  `WAVE` layers) for import into CAM / CNC software — works the same
-  way for every pattern type.
+## Aperçu
 
-## Architecture
+`cnc-pattern-generator.html` est une page HTML/CSS/JavaScript unique,
+sans dépendance, sans étape de build et sans serveur : elle s'ouvre
+directement dans un navigateur et fonctionne entièrement en local. Tout
+se passe côté client — aucune donnée n'est envoyée où que ce soit.
 
-The script is organized around **pattern types**, each with its own list
-of **families** (motif presets) and its own generator function. Every
-generator returns a flat list of clipped polylines in panel-local
-millimeter coordinates — that's the only contract the renderer and the
-SVG/DXF exporters care about, so adding a pattern type never touches
-rendering or export code.
+Le principe : on choisit un **type de motif**, un **motif** précis dans
+ce type, on ajuste quelques paramètres numériques (taille de
+cellule/pas, espacement, rotation ou phase, échelle), on dispose un ou
+plusieurs **panneaux** côte à côte, puis on exporte le résultat en SVG
+(vecteur) ou DXF (pour CAM/CNC).
 
-Grid-based pattern types (Lissajous, rose, spiral, Truchet, zellige, hex)
-share one `gridCells()` helper that lays out cell centers across the
-panel — anchored to the panel's absolute X position when "Continuous
-Pattern" is on, so the grid lines up seamlessly across panel boundaries,
-the same way the wave pattern's phase does. A generic `clipPolylineRect()`
-(clip on Y then X, interpolating both coordinates at each boundary
-crossing) replaces the old Y-only clip and works for every pattern type,
-including closed loops that exit and re-enter the panel on any side.
+## Fonctionnalités
+
+- **Unités** : millimètres ou pouces.
+- **Taille de panneau** libre (largeur × hauteur).
+- **7 types de motifs, 33 variantes au total**, chacun basé sur des
+  mathématiques différentes — pas seulement des ondes sinusoïdales :
+
+  | Type | Variantes | Principe |
+  |---|---|---|
+  | **Wave / Weave** | 6 | Bandes de sinusoïdes qui se croisent (tressage, motif "œil"/lens classique) |
+  | **Lissajous Curves** | 6 | Courbes paramétriques `x=sin(a·t)`, `y=sin(b·t)`, boucles fermées répétées en grille |
+  | **Rose Curves** | 6 | Courbes polaires `r=cos(k·θ)` (rosaces à 3, 4, 5, 7, 8 pétales) |
+  | **Spirals** | 5 | Spirales d'Archimède (rayon linéaire) ou logarithmiques (rayon exponentiel), 1 à 3 bras |
+  | **Truchet Tiles** | 3 | Orientation pseudo-aléatoire *déterministe* par tuile — le seul motif volontairement non répétitif |
+  | **Zellige Star Lattice** | 4 | Étoiles à 5/6/8/12 pointes sur grille triangulaire, dans l'esprit des motifs géométriques marocains |
+  | **Hex Honeycomb** | 3 | Pavage hexagonal nid d'abeille, bord à bord |
+
+- **Panneaux multiples** disposés en ligne, avec décalage manuel
+  (haut/bas/gauche/droite) par panneau, et un mode **"Continuous
+  Pattern"** qui aligne parfaitement le motif d'un panneau à l'autre
+  (utile pour un ensemble de panneaux qui doivent former un seul grand
+  motif continu une fois posés côte à côte).
+- **Zoom** sur l'aperçu SVG en temps réel.
+- **Export SVG** (chemins vectoriels, à l'échelle en millimètres) et
+  **Export DXF** (R12 ASCII, entités `LWPOLYLINE`, calques `PANEL` et
+  `WAVE`) — les deux fonctionnent de la même façon pour tous les types
+  de motifs.
+
+## Démarrage rapide
+
+Aucune installation nécessaire :
+
+1. Télécharger ou cloner ce dépôt.
+2. Ouvrir `cnc-pattern-generator.html` dans un navigateur (double-clic,
+   ou glisser-déposer dans une fenêtre du navigateur).
+3. Ajuster les paramètres dans le panneau de gauche, prévisualiser à
+   droite, puis exporter en SVG ou DXF.
+
+## Guide d'utilisation
+
+1. **Units** — choisir mm ou pouces (les champs numériques sont alors
+   interprétés dans cette unité).
+2. **Panel Size** — largeur et hauteur du panneau.
+3. **Pattern Settings** :
+   - **Pattern Type** — le type de motif (Wave, Lissajous, Rose,
+     Spiral, Truchet, Zellige, Hex).
+   - **Motif** — la variante précise à l'intérieur de ce type.
+   - Les 6 champs numériques qui suivent (Step, Gap, Offset, Wave
+     Offset, Width/Height Scale) sont **partagés par tous les types**
+     mais changent de sens et d'étiquette selon le type choisi — par
+     exemple *Wave Offset* devient *Random Seed* pour les pavages de
+     Truchet, ou *Rotation (deg)* pour les rosaces/spirales/zellige.
+     **Offset** est toujours calculé automatiquement (lecture seule) :
+     c'est le pas de répétition réel du motif.
+4. **Panel Layout** — ajouter/dupliquer/supprimer des panneaux, les
+   déplacer avec le pavé directionnel, activer *Continuous Pattern*
+   pour un raccord parfait entre panneaux adjacents.
+5. **Export SVG / Export DXF** — télécharge le résultat final, prêt à
+   importer dans un logiciel de CAM/CNC.
+
+## Pile technique
+
+- HTML + CSS + JavaScript (ES6) pur, dans un IIFE unique — aucune
+  dépendance, aucun bundler.
+- Rendu : SVG inline (`<polyline>` par ligne de motif, `<rect>` par
+  panneau).
+- Export : chaînes SVG et DXF construites à la main (pas de librairie
+  DXF externe).
+- Thème sombre "atelier", accent orange sécurité, aperçu sur fond
+  "papier" pour évoquer un plan technique posé sur un tapis de découpe.
+
+## Architecture du code
+
+Le script est organisé autour de **types de motifs**, chacun avec sa
+propre liste de **familles** (les variantes) et sa propre fonction
+génératrice. Chaque génératrice renvoie une simple liste de polylignes
+déjà découpées aux limites du panneau, en coordonnées millimétriques
+locales au panneau — c'est le seul contrat que le rendu et les
+exports SVG/DXF exigent, donc ajouter un type de motif ne touche
+jamais au code de rendu ou d'export.
+
+Les types basés sur une grille (Lissajous, Rose, Spiral, Truchet,
+Zellige, Hex) partagent une fonction `gridCells()` qui positionne les
+centres de cellules sur le panneau — ancrée sur la position absolue X
+du panneau quand *Continuous Pattern* est actif, pour un raccord
+parfait entre panneaux, exactement comme la phase du motif Wave.
+Une fonction générique `clipPolylineRect()` (découpe sur Y puis sur X,
+en interpolant les deux coordonnées à chaque frontière) remplace
+l'ancien découpage limité à Y et fonctionne pour tous les types, y
+compris les boucles fermées qui sortent et rentrent dans le panneau
+par n'importe quel bord.
+
+Ajouter un nouveau type de motif : une entrée `{ id, families }` dans
+`PATTERN_TYPES`, une fonction génératrice, une entrée dans
+`PATTERN_FIELD_CONFIG` (comment étiqueter/afficher les 6 champs
+partagés pour ce type), et un `case` dans le dispatcher
+`generatePanelLines()` — rien d'autre à modifier. Ajouter une variante
+à un type existant : un seul objet de plus dans le tableau de familles
+de ce type.
+
+<details>
+<summary>Détail mathématique de chaque type de motif</summary>
 
 ### Wave / Weave
 
-Each pattern is a set of horizontal "bands" stacked down the panel
-height. Each band contains `n` sine-wave lines; the look comes from how
-amplitude varies across those `n` lines:
-
-- `taper: 'lens'` — amplitude goes from `+A` to `-A` linearly across the
-  `n` lines, so lines cross and pinch at shared nodes (the "eye" shape).
-- `taper: 'zigzag'` — amplitude alternates `+A / -A` with no
-  interpolation (simple over/under weave, no pinch points).
-
-Per-line formula (local coordinates, panel-relative):
+Bandes horizontales de `n` lignes sinusoïdales. `taper: 'lens'` fait
+varier l'amplitude linéairement de `+A` à `-A` sur les `n` lignes (les
+lignes se croisent et se pincent aux mêmes nœuds, effet "œil").
+`taper: 'zigzag'` alterne simplement `+A`/`-A`.
 
 ```
 y(x) = yBase + Ak * sin(2π·(globalX + x)/λ + parity + phaseShift)
 ```
 
-- `λ` (wavelength) = `2 * step * (widthScale/100)`
-- `A` (amplitude) = `0.9 * step * (heightScale/100)`
-- `parity` = `π` on every other band, creating the brick-like offset
-  between rows
+- `λ` = `2 * step * (widthScale/100)`
+- `A` = `0.9 * step * (heightScale/100)`
+- `parity` = `π` toutes les deux bandes (décalage type "brique")
 - `phaseShift` = `(waveOffset / λ) * 2π`
-- `globalX` = the panel's absolute X position when "Continuous Pattern"
-  is on, or `0` per panel when it's off
+- Pas de bande (**Offset**) = `(n - 1) * step + gap`
 
-Band pitch (vertical spacing between band centers), shown read-only as
-**Offset**: `bandPitch = (n - 1) * step + gap`.
+### Lissajous Curves
 
-| id    | n | taper   | look                          |
-|-------|---|---------|-------------------------------|
-| wave1 | 2 | zigzag  | simple crossing weave         |
-| wave2 | 3 | zigzag  | triple zigzag                 |
-| wave3 | 4 | lens    | four-line lens weave          |
-| wave4 | 5 | zigzag  | diamond zigzag                |
-| wave5 | 3 | lens    | classic eye/lens (reference)  |
-| wave6 | 6 | lens    | dense six-line lens weave     |
+Une boucle fermée par cellule : `x = R·sin(a·t + phase)`,
+`y = R·sin(b·t)`. Le ratio entier `a:b` (3:2, 5:4, 2:1, 5:2, 7:6, 4:3)
+détermine la forme de la boucle.
 
-### Lissajous curves
+### Rose Curves
 
-One closed loop per grid cell: `x = R·scaleX·sin(a·t + phase)`,
-`y = R·scaleY·sin(b·t)` for `t` in `[0, 2π]`. The `a:b` integer ratio
-(3:2, 5:4, 2:1, 5:2, 7:6, 4:3) sets the loop shape; **Phase (deg)** shifts
-it, **X/Y Amplitude %** stretch each axis independently.
-
-### Rose (rhodonea) curves
-
-Polar curve `r = R·cos(k·θ)`, one rosette per grid cell on a staggered
-grid so neighbours interlock. `k` sets the petal count (2→4 petals,
-3→3, 4→8, 5→5, 7→7); `k=1.5` traces a 3-lobe curve over `4π`.
-**Rotation (deg)** spins each rosette; **X/Y Scale %** stretch it.
+Courbe polaire `r = R·cos(k·θ)`, une rosace par cellule sur une grille
+en quinconce pour un bon entrelacement. `k` détermine le nombre de
+pétales.
 
 ### Spirals
 
-1–3 interleaved arms per grid cell, each either **Archimedean**
-(`r = maxR·t`, linear) or **logarithmic** (`r = r₀·e^(b·θ)`, exponential /
-equiangular). **Rotation (deg)** offsets the whole motif; **X/Y Scale %**
-stretch it.
+1 à 3 bras entrelacés par cellule, en spirale d'Archimède
+(`r = maxR·t`, linéaire) ou logarithmique (`r = r₀·e^(b·θ)`,
+exponentielle/équiangulaire).
 
-### Truchet tiles
+### Truchet Tiles
 
-Each grid tile gets a deterministic pseudo-random orientation — two
-quarter-circle arcs (classic Truchet look), a diagonal split, or a random
-mix of both — from a hash of the tile's grid coordinates and **Random
-Seed**. Same seed always reproduces the same tiling; changing the seed
-reshuffles it. This is the one pattern type that is deliberately *not* a
-simple periodic repeat.
+Chaque tuile de la grille reçoit une orientation pseudo-aléatoire mais
+déterministe (fonction de hachage des coordonnées de la tuile et de
+**Random Seed**) : arcs de cercle, diagonale, ou mélange des deux. Le
+même seed reproduit toujours le même pavage.
 
-### Zellige star lattice
+### Zellige Star Lattice
 
-An `N`-point star polygon (radii alternating **Star Radius %** and
-**Star Radius % × Inner Ratio %**) at every point of a triangular grid,
-in the spirit of Moroccan zellige / Islamic geometric star motifs
-(5/6/8/12-point presets). **Rotation (deg)** spins every star.
+Un polygone étoilé à `N` pointes (rayons alternés) à chaque point
+d'une grille triangulaire, dans l'esprit des motifs géométriques
+marocains/islamiques (variantes 5/6/8/12 pointes).
 
-### Hex honeycomb
+### Hex Honeycomb
 
-A proper edge-to-edge flat-top hexagon tiling (`Hex Size` = corner
-radius, `Hex Spacing` = extra gap between cells). The `double` variant
-adds a concentric inner hexagon; `tri` adds six struts from center to
-each corner.
+Pavage hexagonal "flat-top" bord à bord classique, avec variante à
+hexagone intérieur concentrique ou à entretoises radiales.
 
-Adding a new pattern type means adding one `{ id, families }` entry to
-`PATTERN_TYPES`, one generator function, one entry in
-`PATTERN_FIELD_CONFIG` (how to label/show the 6 shared numeric fields for
-that type), and one `case` in the `generatePanelLines()` dispatcher —
-nothing else needs to change. Adding a new motif to an existing type is
-just one more object in that type's family array.
+</details>
 
-## Known gaps / ideas for a future pass
+## Limites connues / pistes d'évolution
 
-- Panel layout is currently 1D (single row) — no grid/rows, no
-  drag-to-reposition.
-- No persistence (reload loses all settings/panels).
-- DXF export is minimal R12 (two layers, no color/linetype control).
-- No collision/overlap warnings when Step is smaller than a plausible
-  router bit diameter.
-- No image-modulated amplitude (grayscale-driven relief).
-- No undo/history.
-- Zellige star lattice is a simplified star-polygon tiling, not the full
-  compass-and-straightedge Islamic geometric construction (no
-  interlacing/strapwork between stars).
-- Truchet tile randomization is a fixed hash, not exposed as a
-  "shuffle" button — changing the seed field is currently the only way
-  to reroll a tiling.
+- La disposition des panneaux est actuellement en une seule ligne —
+  pas de grille (lignes × colonnes), pas de glisser-déposer.
+- Aucune persistance : recharger la page réinitialise tous les
+  réglages et panneaux.
+- L'export DXF reste minimal (R12, deux calques, pas de gestion des
+  couleurs/types de ligne).
+- Aucun avertissement de collision quand le pas choisi est plus petit
+  qu'un diamètre de fraise plausible.
+- Pas de modulation d'amplitude par image (relief piloté par niveaux de
+  gris).
+- Pas d'undo/historique.
+- Le treillis zellige est une version simplifiée (polygones étoilés
+  tuilés), pas la construction géométrique complète au compas avec
+  entrelacs.
+- Le seed des pavages de Truchet se règle manuellement — pas de bouton
+  "mélanger" dédié.
+
+## Contexte
+
+Développé pour remplacer un outil de bureau fermé ("Wave 5", panneau
+500×500 mm, Step 23 / Offset 44 en référence) utilisé pour générer des
+motifs de panneaux ondulés réutilisables destinés à l'agencement
+décoratif et à la production, dans un atelier CNC + laser.
