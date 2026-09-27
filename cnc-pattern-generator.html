@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CNC Pattern Generator</title>
+<style>
+  :root{
+    --bg:#17181a;
+    --panel-bg:#1f2023;
+    --panel-bg-2:#26272b;
+    --border:#33353a;
+    --text:#e8e6e1;
+    --text-dim:#9a9a9d;
+    --accent:#ff6a1f;
+    --accent-dim:#a8481a;
+    --paper:#f3efe6;
+    --paper-line:#c9c2b2;
+    --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --radius: 8px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:var(--sans);height:100%;}
+  body{
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  header.app-header{
+    padding:14px 20px;
+    border-bottom:1px solid var(--border);
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+    flex-shrink:0;
+  }
+  header.app-header h1{
+    font-size:16px;
+    margin:0;
+    letter-spacing:0.02em;
+    text-transform:uppercase;
+    font-weight:700;
+  }
+  header.app-header .accent-dot{
+    width:8px;height:8px;border-radius:50%;background:var(--accent);
+    box-shadow:0 0 8px var(--accent);
+    display:inline-block;
+  }
+  header.app-header .sub{
+    font-size:12px;color:var(--text-dim);font-family:var(--mono);
+  }
+  .layout{
+    display:flex;
+    flex:1;
+    min-height:0;
+  }
+  .sidebar{
+    width:320px;
+    flex-shrink:0;
+    background:var(--panel-bg);
+    border-right:1px solid var(--border);
+    overflow-y:auto;
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+  }
+  fieldset{
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:12px;
+    margin:0;
+  }
+  legend{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--accent);
+    font-weight:700;
+    padding:0 4px;
+  }
+  .field{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:8px;
+  }
+  .field:last-child{margin-bottom:0;}
+  .field label{
+    font-size:12px;
+    color:var(--text-dim);
+    flex-shrink:0;
+  }
+  .field input[type="number"],
+  .field select{
+    font-family:var(--mono);
+    font-size:13px;
+    background:var(--panel-bg-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:5px;
+    padding:5px 7px;
+    width:110px;
+    text-align:right;
+  }
+  .field select{text-align:left; width:150px;}
+  .field input[type="number"]:focus,
+  .field select:focus{
+    outline:none;
+    border-color:var(--accent);
+  }
+  .field.checkbox{justify-content:flex-start;}
+  .field.checkbox input{margin-right:8px;}
+  .field .readonly{
+    color:var(--text-dim);
+    background:var(--panel-bg);
+  }
+  .hint{
+    font-size:11px;
+    color:var(--text-dim);
+    margin-top:-4px;
+    margin-bottom:8px;
+    font-style:italic;
+  }
+  button{
+    font-family:var(--sans);
+    font-size:12px;
+    background:var(--panel-bg-2);
+    border:1px solid var(--border);
+    color:var(--text);
+    border-radius:5px;
+    padding:7px 10px;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  button:hover{border-color:var(--accent);}
+  button:active{background:var(--accent-dim);}
+  button.primary{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#1a1a1a;
+    font-weight:700;
+  }
+  button.primary:hover{border-color:#fff;}
+  button.small{padding:4px 7px;font-size:11px;}
+  .btn-row{display:flex;gap:6px;flex-wrap:wrap;}
+  .move-pad{
+    display:grid;
+    grid-template-columns:36px 36px 36px;
+    grid-template-rows:36px 36px 36px;
+    gap:4px;
+    justify-content:center;
+    margin:8px 0;
+  }
+  .move-pad button{padding:0;display:flex;align-items:center;justify-content:center;}
+  .move-pad .up{grid-column:2;grid-row:1;}
+  .move-pad .left{grid-column:1;grid-row:2;}
+  .move-pad .center{grid-column:2;grid-row:2;color:var(--text-dim);cursor:default;background:var(--panel-bg);}
+  .move-pad .right{grid-column:3;grid-row:2;}
+  .move-pad .down{grid-column:2;grid-row:3;}
+  #panelList{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    max-height:220px;
+    overflow-y:auto;
+  }
+  .panel-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:6px;
+    padding:6px 8px;
+    border:1px solid var(--border);
+    border-radius:5px;
+    font-family:var(--mono);
+    font-size:11px;
+    cursor:pointer;
+  }
+  .panel-row.selected{
+    border-color:var(--accent);
+    background:rgba(255,106,31,0.08);
+  }
+  .panel-row .row-actions{display:flex;gap:4px;}
+  .stage{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+    background:var(--bg);
+  }
+  .stage-toolbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 16px;
+    border-bottom:1px solid var(--border);
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .stats{
+    display:flex;
+    gap:16px;
+    font-family:var(--mono);
+    font-size:11px;
+    color:var(--text-dim);
+    flex-wrap:wrap;
+  }
+  .stats b{color:var(--text);}
+  .zoom-control{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-family:var(--mono);
+    font-size:11px;
+  }
+  .zoom-control input[type="range"]{width:120px;}
+  .canvas-wrap{
+    flex:1;
+    overflow:auto;
+    display:flex;
+    align-items:flex-start;
+    justify-content:flex-start;
+    padding:24px;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size:20px 20px;
+  }
+  #stageSvg{
+    background:var(--paper);
+    box-shadow:0 4px 24px rgba(0,0,0,0.5);
+    flex-shrink:0;
+  }
+  .export-bar{
+    display:flex;
+    gap:10px;
+    padding:12px 16px;
+    border-top:1px solid var(--border);
+    flex-wrap:wrap;
+  }
+  @media (max-width:860px){
+    .layout{flex-direction:column;}
+    .sidebar{width:100%;max-height:50vh;border-right:none;border-bottom:1px solid var(--border);}
+  }
+</style>
+</head>
+<body>
+  <header class="app-header">
+    <span class="accent-dot"></span>
+    <h1>CNC Pattern Generator</h1>
+    <span class="sub">wave &middot; weave panel patterns for CNC / laser cut</span>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+
+      <fieldset>
+        <legend>Units</legend>
+        <div class="field">
+          <label for="units">Units</label>
+          <select id="units">
+            <option value="mm">Millimeters (mm)</option>
+            <option value="in">Inches (in)</option>
+          </select>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Panel Size</legend>
+        <div class="field">
+          <label for="panelW">Width</label>
+          <input type="number" id="panelW" min="10" step="1" />
+        </div>
+        <div class="field">
+          <label for="panelH">Height</label>
+          <input type="number" id="panelH" min="10" step="1" />
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Wave Settings</legend>
+        <div class="field">
+          <label for="family">Pattern</label>
+          <select id="family"></select>
+        </div>
+        <div class="hint" id="familyHint"></div>
+        <div class="field">
+          <label for="step">Step</label>
+          <input type="number" id="step" min="1" step="0.5" />
+        </div>
+        <div class="field">
+          <label for="gap">Gap</label>
+          <input type="number" id="gap" step="0.5" />
+        </div>
+        <div class="field">
+          <label for="offset">Offset (band pitch)</label>
+          <input type="number" id="offset" class="readonly" readonly />
+        </div>
+        <div class="field">
+          <label for="waveOffset">Wave Offset</label>
+          <input type="number" id="waveOffset" step="0.5" />
+        </div>
+        <div class="field">
+          <label for="widthScale">Width Scale %</label>
+          <input type="number" id="widthScale" min="10" step="1" />
+        </div>
+        <div class="field">
+          <label for="heightScale">Height Scale %</label>
+          <input type="number" id="heightScale" min="1" step="1" />
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Panel Layout</legend>
+        <div class="field checkbox">
+          <input type="checkbox" id="continuous" />
+          <label for="continuous">Continuous pattern across panels</label>
+        </div>
+        <div class="field">
+          <label for="panelGap">Panel Gap</label>
+          <input type="number" id="panelGap" min="0" step="1" />
+        </div>
+        <div class="field">
+          <label for="exactMove">Nudge Distance</label>
+          <input type="number" id="exactMove" min="0.1" step="0.1" />
+        </div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button id="addPanelBtn">+ Add Panel</button>
+          <button id="dupPanelBtn">Duplicate</button>
+          <button id="delPanelBtn">Delete</button>
+        </div>
+        <div class="move-pad">
+          <button class="up" data-move="up" title="Nudge up">&uarr;</button>
+          <button class="left" data-move="left" title="Nudge left">&larr;</button>
+          <div class="center">+</div>
+          <button class="right" data-move="right" title="Nudge right">&rarr;</button>
+          <button class="down" data-move="down" title="Nudge down">&darr;</button>
+        </div>
+        <div id="panelList"></div>
+      </fieldset>
+
+    </aside>
+
+    <main class="stage">
+      <div class="stage-toolbar">
+        <div class="stats" id="stats"></div>
+        <div class="zoom-control">
+          <label for="zoom">Zoom</label>
+          <input type="range" id="zoom" min="0.25" max="4" step="0.05" />
+          <span id="zoomLabel">100%</span>
+        </div>
+      </div>
+      <div class="canvas-wrap">
+        <svg id="stageSvg" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+      <div class="export-bar">
+        <button class="primary" id="exportSvgBtn">Export SVG</button>
+        <button class="primary" id="exportDxfBtn">Export DXF</button>
+      </div>
+    </main>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------------------------------------------------------------------
+  // Pattern families: n = number of lines per band, taper = amplitude
+  // profile across those lines.
+  //   'lens'    -> amplitude interpolates +A..-A across the n lines,
+  //                lines cross and pinch at shared nodes ("eye" shape).
+  //   'zigzag'  -> amplitude alternates +A / -A, simple over/under weave.
+  // ---------------------------------------------------------------------
+  const FAMILIES = [
+    { id:'wave1', name:'Wave 1', n:2, taper:'zigzag', hint:'Simple crossing weave.' },
+    { id:'wave2', name:'Wave 2', n:3, taper:'zigzag', hint:'Triple zigzag.' },
+    { id:'wave3', name:'Wave 3', n:4, taper:'lens',   hint:'Four-line lens weave.' },
+    { id:'wave4', name:'Wave 4', n:5, taper:'zigzag', hint:'Diamond zigzag.' },
+    { id:'wave5', name:'Wave 5', n:3, taper:'lens',   hint:'Classic eye / lens weave (reference preset).' },
+    { id:'wave6', name:'Wave 6', n:6, taper:'lens',   hint:'Dense six-line lens weave.' },
+  ];
+
+  const UNIT_TO_MM = { mm:1, in:25.4 };
+
+  const state = {
+    units:'mm',
+    panelW:500,
+    panelH:500,
+    step:23,
+    gap:-2,
+    waveOffset:0,
+    widthScale:100,
+    heightScale:100,
+    family:'wave5',
+    continuous:true,
+    panelGap:10,
+    exactMove:5,
+    zoom:1,
+    panels:[ { id:1, col:0, row:0, dx:0, dy:0 } ],
+    selectedId:1,
+    nextId:2,
+  };
+
+  function familyById(id){
+    return FAMILIES.find(f => f.id === id) || FAMILIES[0];
+  }
+
+  function bandPitchMM(){
+    const fam = familyById(state.family);
+    const stepMM = state.step * UNIT_TO_MM[state.units];
+    const gapMM = state.gap * UNIT_TO_MM[state.units];
+    return (fam.n - 1) * stepMM + gapMM;
+  }
+
+  // -----------------------------------------------------------------
+  // Geometry: clip a polyline (array of {x,y}) to a vertical band
+  // [yMin, yMax], splitting into segments at every crossing.
+  // -----------------------------------------------------------------
+  function clipPolylineY(pts, yMin, yMax){
+    const segments = [];
+    let current = [];
+    const inside = y => y >= yMin && y <= yMax;
+    function interp(p1, p2, yBound){
+      const t = (yBound - p1.y) / (p2.y - p1.y);
+      return { x: p1.x + t * (p2.x - p1.x), y: yBound };
+    }
+    for (let i = 0; i < pts.length; i++){
+      const p = pts[i];
+      const prev = i > 0 ? pts[i-1] : null;
+      if (inside(p.y)){
+        if (prev && !inside(prev.y)){
+          const bound = prev.y < yMin ? yMin : yMax;
+          current.push(interp(prev, p, bound));
+        }
+        current.push(p);
+      } else {
+        if (prev && inside(prev.y)){
+          const bound = p.y < yMin ? yMin : yMax;
+          current.push(interp(prev, p, bound));
+          if (current.length > 1) segments.push(current);
+          current = [];
+        } else if (prev && !inside(prev.y)){
+          // both samples outside the band but may have crossed straight through it
+          const crossedDown = prev.y > yMax && p.y < yMin;
+          const crossedUp = prev.y < yMin && p.y > yMax;
+          if (crossedDown || crossedUp){
+            const b1 = prev.y > yMax ? yMax : yMin;
+            const b2 = p.y > yMax ? yMax : yMin;
+            current = [ interp(prev, p, b1), interp(prev, p, b2) ];
+            segments.push(current);
+            current = [];
+          }
+        }
+      }
+    }
+    if (current.length > 1) segments.push(current);
+    return segments;
+  }
+
+  // -----------------------------------------------------------------
+  // Generate every wave line (already clipped to the panel height) for
+  // one panel, in panel-local mm coordinates.
+  // -----------------------------------------------------------------
+  function generatePanelLines(panel){
+    const fam = familyById(state.family);
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u;
+    const panelHmm = state.panelH * u;
+    const stepMM = state.step * u;
+    const gapMM = state.gap * u;
+    const waveOffsetMM = state.waveOffset * u;
+    const panelGapMM = state.panelGap * u;
+
+    const lambda = 2 * stepMM * (state.widthScale / 100);
+    const A = 0.9 * stepMM * (state.heightScale / 100);
+    const phaseShift = lambda !== 0 ? (waveOffsetMM / lambda) * 2 * Math.PI : 0;
+    const bandPitch = (fam.n - 1) * stepMM + gapMM;
+
+    const globalX = state.continuous
+      ? panel.col * (panelWmm + panelGapMM) + panel.dx
+      : 0;
+
+    const dx = Math.max(0.75, Math.abs(lambda) / 40 || 0.75);
+    const margin = Math.abs(A) + Math.abs(stepMM) + Math.abs(bandPitch);
+    const bStart = bandPitch !== 0 ? Math.floor(-margin / bandPitch) - 1 : 0;
+    const bEnd = bandPitch !== 0 ? Math.ceil((panelHmm + margin) / bandPitch) + 1 : 0;
+
+    const rawLines = [];
+    for (let bIdx = bStart; bIdx <= bEnd; bIdx++){
+      const parity = (((bIdx % 2) + 2) % 2 === 1) ? Math.PI : 0;
+      for (let k = 0; k < fam.n; k++){
+        let Ak;
+        if (fam.taper === 'lens'){
+          Ak = fam.n > 1 ? A * (1 - 2 * k / (fam.n - 1)) : 0;
+        } else {
+          Ak = (k % 2 === 0) ? A : -A;
+        }
+        const baseline = bIdx * bandPitch + k * stepMM;
+        const pts = [];
+        for (let x = 0; x <= panelWmm + 1e-6; x += dx){
+          const xx = Math.min(x, panelWmm);
+          const y = baseline + Ak * Math.sin(2 * Math.PI * (globalX + xx) / lambda + parity + phaseShift);
+          pts.push({ x: xx, y });
+          if (xx >= panelWmm) break;
+        }
+        rawLines.push(pts);
+      }
+    }
+
+    const clipped = [];
+    for (const line of rawLines){
+      for (const seg of clipPolylineY(line, 0, panelHmm)){
+        clipped.push(seg);
+      }
+    }
+    return clipped;
+  }
+
+  function panelLayout(panel){
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u;
+    const panelGapMM = state.panelGap * u;
+    return {
+      x: panel.col * (panelWmm + panelGapMM) + panel.dx * u,
+      y: panel.row * 0 + panel.dy * u,
+    };
+  }
+
+  // ---------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------
+  const svg = document.getElementById('stageSvg');
+
+  function render(){
+    readInputs();
+    syncDerivedFields();
+
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u;
+    const panelHmm = state.panelH * u;
+
+    let maxX = 0, maxY = 0;
+    const panelGeoms = state.panels.map(panel => {
+      const pos = panelLayout(panel);
+      const lines = generatePanelLines(panel);
+      maxX = Math.max(maxX, pos.x + panelWmm);
+      maxY = Math.max(maxY, pos.y + panelHmm);
+      return { panel, pos, lines };
+    });
+
+    const pad = Math.max(20, panelWmm * 0.04);
+    const totalW = maxX + pad * 2;
+    const totalH = maxY + pad * 2;
+
+    svg.setAttribute('viewBox', `0 0 ${totalW} ${totalH}`);
+    const pxPerMM = 1.4 * state.zoom;
+    svg.setAttribute('width', Math.round(totalW * pxPerMM));
+    svg.setAttribute('height', Math.round(totalH * pxPerMM));
+    svg.innerHTML = '';
+
+    const gRoot = document.createElementNS(svg.namespaceURI, 'g');
+    gRoot.setAttribute('transform', `translate(${pad},${pad})`);
+    svg.appendChild(gRoot);
+
+    for (const { panel, pos, lines } of panelGeoms){
+      const gPanel = document.createElementNS(svg.namespaceURI, 'g');
+      gPanel.setAttribute('transform', `translate(${pos.x},${pos.y})`);
+
+      const rect = document.createElementNS(svg.namespaceURI, 'rect');
+      rect.setAttribute('x', 0);
+      rect.setAttribute('y', 0);
+      rect.setAttribute('width', panelWmm);
+      rect.setAttribute('height', panelHmm);
+      rect.setAttribute('fill', 'var(--paper)');
+      rect.setAttribute('stroke', panel.id === state.selectedId ? 'var(--accent)' : 'var(--paper-line)');
+      rect.setAttribute('stroke-width', panel.id === state.selectedId ? 1.5 : 1);
+      gPanel.appendChild(rect);
+
+      for (const seg of lines){
+        const pl = document.createElementNS(svg.namespaceURI, 'polyline');
+        pl.setAttribute('points', seg.map(p => `${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(' '));
+        pl.setAttribute('fill', 'none');
+        pl.setAttribute('stroke', 'var(--accent)');
+        pl.setAttribute('stroke-width', Math.max(0.4, panelWmm * 0.0016));
+        pl.setAttribute('vector-effect', 'non-scaling-stroke');
+        gPanel.appendChild(pl);
+      }
+
+      gPanel.style.cursor = 'pointer';
+      gPanel.addEventListener('click', () => { state.selectedId = panel.id; render(); });
+      gRoot.appendChild(gPanel);
+    }
+
+    renderPanelList();
+    renderStats(panelGeoms);
+  }
+
+  function renderStats(panelGeoms){
+    const fam = familyById(state.family);
+    const bandPitch = bandPitchMM();
+    const totalLines = panelGeoms.reduce((sum, g) => sum + g.lines.length, 0);
+    const stats = document.getElementById('stats');
+    stats.innerHTML = `
+      <span>Pattern: <b>${fam.name}</b></span>
+      <span>Band pitch: <b>${bandPitch.toFixed(2)} mm</b></span>
+      <span>Panels: <b>${state.panels.length}</b></span>
+      <span>Segments: <b>${totalLines}</b></span>
+    `;
+  }
+
+  function renderPanelList(){
+    const list = document.getElementById('panelList');
+    list.innerHTML = '';
+    state.panels.forEach(panel => {
+      const row = document.createElement('div');
+      row.className = 'panel-row' + (panel.id === state.selectedId ? ' selected' : '');
+      row.innerHTML = `<span>Panel #${panel.id} &middot; col ${panel.col} &middot; dx ${panel.dx.toFixed(1)} dy ${panel.dy.toFixed(1)}</span>`;
+      row.addEventListener('click', () => { state.selectedId = panel.id; render(); });
+      list.appendChild(row);
+    });
+  }
+
+  // ---------------------------------------------------------------------
+  // Inputs <-> state
+  // ---------------------------------------------------------------------
+  const inputIds = ['units','panelW','panelH','step','gap','waveOffset','widthScale','heightScale','family','continuous','panelGap','exactMove','zoom'];
+
+  function readInputs(){
+    state.units = document.getElementById('units').value;
+    state.panelW = parseFloat(document.getElementById('panelW').value) || state.panelW;
+    state.panelH = parseFloat(document.getElementById('panelH').value) || state.panelH;
+    state.step = parseFloat(document.getElementById('step').value) || state.step;
+    state.gap = parseFloat(document.getElementById('gap').value) || 0;
+    state.waveOffset = parseFloat(document.getElementById('waveOffset').value) || 0;
+    state.widthScale = parseFloat(document.getElementById('widthScale').value) || state.widthScale;
+    state.heightScale = parseFloat(document.getElementById('heightScale').value) || state.heightScale;
+    state.family = document.getElementById('family').value;
+    state.continuous = document.getElementById('continuous').checked;
+    state.panelGap = parseFloat(document.getElementById('panelGap').value) || 0;
+    state.exactMove = parseFloat(document.getElementById('exactMove').value) || state.exactMove;
+    state.zoom = parseFloat(document.getElementById('zoom').value) || 1;
+  }
+
+  function syncDerivedFields(){
+    document.getElementById('offset').value = bandPitchMM().toFixed(2);
+    document.getElementById('familyHint').textContent = familyById(state.family).hint;
+    document.getElementById('zoomLabel').textContent = Math.round(state.zoom * 100) + '%';
+  }
+
+  function writeInputsFromState(){
+    document.getElementById('units').value = state.units;
+    document.getElementById('panelW').value = state.panelW;
+    document.getElementById('panelH').value = state.panelH;
+    document.getElementById('step').value = state.step;
+    document.getElementById('gap').value = state.gap;
+    document.getElementById('waveOffset').value = state.waveOffset;
+    document.getElementById('widthScale').value = state.widthScale;
+    document.getElementById('heightScale').value = state.heightScale;
+    document.getElementById('continuous').checked = state.continuous;
+    document.getElementById('panelGap').value = state.panelGap;
+    document.getElementById('exactMove').value = state.exactMove;
+    document.getElementById('zoom').value = state.zoom;
+
+    const familySel = document.getElementById('family');
+    familySel.innerHTML = FAMILIES.map(f => `<option value="${f.id}">${f.name}</option>`).join('');
+    familySel.value = state.family;
+  }
+
+  inputIds.forEach(id => {
+    const el = document.getElementById(id);
+    const evt = (el.type === 'checkbox' || el.tagName === 'SELECT') ? 'change' : 'input';
+    el.addEventListener(evt, render);
+  });
+
+  // ---------------------------------------------------------------------
+  // Panel management
+  // ---------------------------------------------------------------------
+  function selectedPanel(){
+    return state.panels.find(p => p.id === state.selectedId) || state.panels[0];
+  }
+
+  document.getElementById('addPanelBtn').addEventListener('click', () => {
+    const panel = { id: state.nextId++, col: state.panels.length, row: 0, dx: 0, dy: 0 };
+    state.panels.push(panel);
+    state.selectedId = panel.id;
+    render();
+  });
+
+  document.getElementById('dupPanelBtn').addEventListener('click', () => {
+    const src = selectedPanel();
+    if (!src) return;
+    const panel = { id: state.nextId++, col: state.panels.length, row: src.row, dx: src.dx, dy: src.dy };
+    state.panels.push(panel);
+    state.selectedId = panel.id;
+    render();
+  });
+
+  document.getElementById('delPanelBtn').addEventListener('click', () => {
+    if (state.panels.length <= 1) return;
+    const idx = state.panels.findIndex(p => p.id === state.selectedId);
+    if (idx === -1) return;
+    state.panels.splice(idx, 1);
+    state.panels.forEach((p, i) => { p.col = i; });
+    state.selectedId = state.panels[Math.max(0, idx - 1)].id;
+    render();
+  });
+
+  document.querySelectorAll('.move-pad button[data-move]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const panel = selectedPanel();
+      if (!panel) return;
+      const d = state.exactMove;
+      switch (btn.dataset.move){
+        case 'up': panel.dy -= d; break;
+        case 'down': panel.dy += d; break;
+        case 'left': panel.dx -= d; break;
+        case 'right': panel.dx += d; break;
+      }
+      render();
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // Export
+  // ---------------------------------------------------------------------
+  function download(filename, mime, content){
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function buildGeometry(){
+    const u = UNIT_TO_MM[state.units];
+    const panelWmm = state.panelW * u;
+    const panelHmm = state.panelH * u;
+    let maxX = 0, maxY = 0;
+    const panels = state.panels.map(panel => {
+      const pos = panelLayout(panel);
+      const lines = generatePanelLines(panel);
+      maxX = Math.max(maxX, pos.x + panelWmm);
+      maxY = Math.max(maxY, pos.y + panelHmm);
+      return { panel, pos, lines };
+    });
+    return { panels, panelWmm, panelHmm, totalW: maxX, totalH: maxY };
+  }
+
+  function exportSVG(){
+    const { panels, panelWmm, panelHmm, totalW, totalH } = buildGeometry();
+    const pad = Math.max(10, panelWmm * 0.02);
+    const w = totalW + pad * 2, h = totalH + pad * 2;
+    let body = '';
+    for (const { pos, lines } of panels){
+      body += `<g transform="translate(${pos.x + pad},${pos.y + pad})">`;
+      body += `<rect x="0" y="0" width="${panelWmm}" height="${panelHmm}" fill="none" stroke="#000" stroke-width="0.3"/>`;
+      for (const seg of lines){
+        const pts = seg.map(p => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(' ');
+        body += `<polyline points="${pts}" fill="none" stroke="#000" stroke-width="0.3"/>`;
+      }
+      body += `</g>`;
+    }
+    const svgOut = `<?xml version="1.0" encoding="UTF-8"?>\n` +
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${w}mm" height="${h}mm" viewBox="0 0 ${w} ${h}">\n${body}\n</svg>`;
+    download('cnc-pattern.svg', 'image/svg+xml', svgOut);
+  }
+
+  function polylineToDXF(points, layer, totalH){
+    const lines = ['0','LWPOLYLINE','8',layer,'90',String(points.length),'70','0'];
+    for (const p of points){
+      lines.push('10', p.x.toFixed(4), '20', (totalH - p.y).toFixed(4));
+    }
+    return lines.join('\n');
+  }
+
+  function exportDXF(){
+    const { panels, panelWmm, panelHmm, totalW, totalH } = buildGeometry();
+    const pad = Math.max(10, panelWmm * 0.02);
+    const w = totalW + pad * 2, h = totalH + pad * 2;
+    const insunits = state.units === 'in' ? 1 : 4;
+
+    const entities = [];
+    for (const { pos, lines } of panels){
+      const ox = pos.x + pad, oy = pos.y + pad;
+      const rectPts = [
+        { x: ox, y: oy }, { x: ox + panelWmm, y: oy },
+        { x: ox + panelWmm, y: oy + panelHmm }, { x: ox, y: oy + panelHmm },
+        { x: ox, y: oy },
+      ];
+      entities.push(polylineToDXF(rectPts, 'PANEL', h));
+      for (const seg of lines){
+        const abs = seg.map(p => ({ x: p.x + ox, y: p.y + oy }));
+        entities.push(polylineToDXF(abs, 'WAVE', h));
+      }
+    }
+
+    const dxf = [
+      '0','SECTION','2','HEADER',
+      '9','$INSUNITS','70',String(insunits),
+      '0','ENDSEC',
+      '0','SECTION','2','TABLES',
+      '0','TABLE','2','LAYER','70','2',
+      '0','LAYER','2','PANEL','70','0','62','7','6','CONTINUOUS',
+      '0','LAYER','2','WAVE','70','0','62','1','6','CONTINUOUS',
+      '0','ENDTAB',
+      '0','ENDSEC',
+      '0','SECTION','2','ENTITIES',
+      entities.join('\n'),
+      '0','ENDSEC',
+      '0','EOF',
+    ].join('\n');
+
+    download('cnc-pattern.dxf', 'application/dxf', dxf);
+  }
+
+  document.getElementById('exportSvgBtn').addEventListener('click', exportSVG);
+  document.getElementById('exportDxfBtn').addEventListener('click', exportDXF);
+
+  // ---------------------------------------------------------------------
+  // Boot
+  // ---------------------------------------------------------------------
+  writeInputsFromState();
+  render();
+})();
+</script>
+</body>
+</html>
